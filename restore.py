@@ -48,8 +48,9 @@ def restore_file(client, path, cutoff_datetime, verbose=False):
             print path, target_datetime
         client.restore(path, rev)
     else:
+        client.file_delete(path)
         if verbose:
-            print path, 'DID NOT EXIST BEFORE CUTOFF'
+            print path, 'DELETE'
 
 
 def restore_folder(client, path, cutoff_datetime, verbose=False):
