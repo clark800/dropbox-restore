@@ -1,7 +1,10 @@
 dropbox-restore
 ===============
 
-Restore any dropbox folder to a previous state
+Restore any dropbox folder to a previous state. If a file did not exist at the specified time,
+then no action will be taken for that file (files are not deleted automatically). To obtain the
+exact previous state with no newer files, you can first backup and delete the directory before
+running the script.
 
 Example
 -------
