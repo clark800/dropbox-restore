@@ -36,6 +36,14 @@ def parse_date(s):
 def restore_file(client, path, cutoff_datetime, verbose=False):
     revisions = client.revisions(path)
     revision_dict = {}
+
+    latest_revision = max(revisions, key=lambda r:r['modified'])
+    latest_moddate = parse_date(latest_revision['modified'])
+    if latest_moddate < cutoff_datetime:
+        if verbose:
+            print path, 'SKIP'
+        return
+
     for revision in revisions:
         mod_datetime = parse_date(revision['modified'])
         if mod_datetime < cutoff_datetime:

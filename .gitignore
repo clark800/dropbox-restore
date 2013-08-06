@@ -1,0 +1,5 @@
+token.dat
+*.py[cod]
+*.swp
+*.swo
+*~
