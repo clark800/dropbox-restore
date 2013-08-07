@@ -9,9 +9,9 @@ DELAY = 0.2 # delay between each file (try to stay under API rate limits)
 def authorize():
     flow = dropbox.client.DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
     authorize_url = flow.start()
-    print '1. Go to: ' + authorize_url
-    print '2. Click "Allow" (you might have to log in first)'
-    print '3. Copy the authorization code.'
+    print('1. Go to: ' + authorize_url)
+    print('2. Click "Allow" (you might have to log in first)')
+    print('3. Copy the authorization code.')
     code = raw_input("Enter the authorization code here: ").strip()
     access_token, user_id = flow.finish(code)
     return access_token
@@ -38,29 +38,29 @@ def restore_file(client, path, cutoff_datetime, verbose=False):
     revision_dict = dict((parse_date(r['modified']), r) for r in revisions)
 
     # skip if current revision is the same as it was at the cutoff
-    if max(revision_dict.iterkeys()) < cutoff_datetime:
+    if max(revision_dict.keys()) < cutoff_datetime:
         if verbose:
-            print path, 'SKIP'
+            print(path + ' SKIP')
         return
 
     # look for the most recent revision before the cutoff
-    pre_cutoff_modtimes = [d for d in revision_dict.iterkeys() 
+    pre_cutoff_modtimes = [d for d in revision_dict.keys() 
                                    if d < cutoff_datetime]
     if len(pre_cutoff_modtimes) > 0:
         modtime = max(pre_cutoff_modtimes)
         rev = revision_dict[modtime]['rev']
         if verbose:
-            print path, modtime
+            print(path + ' ' + modtime)
         client.restore(path, rev)
     else:   # there were no revisions before the cutoff, so delete
         if verbose:
-            print path, 'DELETE'
+            print(path + ' DELETE')
         client.file_delete(path)
 
 
 def restore_folder(client, path, cutoff_datetime, verbose=False):
     if verbose:
-        print 'Restoring folder: ' + path
+        print('Restoring folder: ' + path)
     folder = client.metadata(path, list=True, include_deleted=True)
     for item in folder.get('contents', []):
         if item.get('is_dir', False):
