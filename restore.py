@@ -50,7 +50,7 @@ def restore_file(client, path, cutoff_datetime, verbose=False):
         modtime = max(pre_cutoff_modtimes)
         rev = revision_dict[modtime]['rev']
         if verbose:
-            print(path + ' ' + modtime)
+            print(path + ' ' + str(modtime))
         client.restore(path, rev)
     else:   # there were no revisions before the cutoff, so delete
         if verbose:
