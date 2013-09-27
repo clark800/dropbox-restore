@@ -5,6 +5,11 @@ APP_KEY = 'hacwza866qep9o6'
 APP_SECRET = 'kgipko61g58n6uc'
 DELAY = 0.2 # delay between each file (try to stay under API rate limits)
 
+HELP_MESSAGE = \
+"""Note: You must specify the path starting with "/", where "/" is the root 
+of your dropbox folder. So if your dropbox directory is at "/home/user/dropbox"
+and you want to restore "/home/user/dropbox/folder", the ROOTPATH is "/folder".
+"""
 
 def authorize():
     flow = dropbox.client.DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
@@ -61,7 +66,12 @@ def restore_file(client, path, cutoff_datetime, verbose=False):
 def restore_folder(client, path, cutoff_datetime, verbose=False):
     if verbose:
         print('Restoring folder: ' + path)
-    folder = client.metadata(path, list=True, include_deleted=True)
+    try:
+        folder = client.metadata(path, list=True, include_deleted=True)
+    except dropbox.rest.ErrorResponse as e:
+        print(str(e))
+        print(HELP_MESSAGE)
+        return
     for item in folder.get('contents', []):
         if item.get('is_dir', False):
             restore_folder(client, item['path'], cutoff_datetime, verbose)
@@ -72,7 +82,8 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
 
 def main():
     if len(sys.argv) != 3:
-        sys.exit('usage: {0} ROOTPATH YYYY-MM-DD'.format(sys.argv[0]))
+        usage = 'usage: {0} ROOTPATH YYYY-MM-DD\n{1}'
+        sys.exit(usage.format(sys.argv[0], HELP_MESSAGE))
     root_path, cutoff = sys.argv[1:]
     cutoff_datetime = datetime(*map(int, cutoff.split('-')))
     client = login('token.dat')
