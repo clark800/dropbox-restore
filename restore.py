@@ -1,8 +1,8 @@
 import sys, os, dropbox, time
 from datetime import datetime
 
-APP_KEY = 'hacwza866qep9o6'
-APP_SECRET = 'kgipko61g58n6uc'
+APP_KEY = 
+APP_SECRET = 
 DELAY = 0.2 # delay between each file (try to stay under API rate limits)
 
 HELP_MESSAGE = \
