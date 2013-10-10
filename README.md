@@ -13,11 +13,12 @@ Note that the path "/photos/nyc" should be relative to your Dropbox folder; it s
 
 Installation
 ------------
-First make sure that Python 2.7 and pip are installed. Then install the Dropbox Python API with the following command.
+1. First make sure that Python 2.7 and pip are installed. 
+2. Then install the Dropbox Python API with the following command.
 
     pip install dropbox
 
-Download the packaged code from 
+3. Download the packaged code from 
 http://rampantlogic.com/dropbox-restore/dropbox-restore.zip
 This package contains Dropbox API keys that are missing from the source code because Dropbox requires that source code does not contain API keys. Alternatively, you can use the source code from Github and insert your own API keys that you can get from Dropbox.
 
@@ -27,4 +28,4 @@ If you fork this project, you must obtain your own API keys from Dropbox and ins
 
 Time
 ----
-Specifying a time is not officially supported because the time zone is ignored currently. However, it seems like Dropbox always uses UTC, so you can try specifying UTC times at your own risk by specifying the date and time in the format YYYY-MM-DD-HH-MM-SS on the command line. Be warned that Dropbox's documentation does not guarantee that they will always use UTC, so this can break any time.
+Specifying a time is not officially supported because the time zone is ignored currently. However, it seems like Dropbox always uses UTC, so you can try specifying UTC times at your own risk by specifying the date and time in the format YYYY-MM-DD-HH-MM-SS on the command line. Be warned that Dropbox's documentation does not guarantee that they will always use UTC, so this can break at any time.
