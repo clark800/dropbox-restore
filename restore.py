@@ -1,12 +1,12 @@
 import sys, os, dropbox, time
 from datetime import datetime
 
-APP_KEY = 
-APP_SECRET = 
+APP_KEY = 'hacwza866qep9o6'   # INSERT APP_KEY HERE
+APP_SECRET = 'kgipko61g58n6uc'     # INSERT APP_SECRET HERE
 DELAY = 0.2 # delay between each file (try to stay under API rate limits)
 
 HELP_MESSAGE = \
-"""Note: You must specify the path starting with "/", where "/" is the root 
+"""Note: You must specify the path starting with "/", where "/" is the root
 of your dropbox folder. So if your dropbox directory is at "/home/user/dropbox"
 and you want to restore "/home/user/dropbox/folder", the ROOTPATH is "/folder".
 """
@@ -42,7 +42,7 @@ def parse_date(s):
     return datetime.strptime(a, '%a, %d %b %Y %H:%M:%S')
 
 
-def restore_file(client, path, cutoff_datetime, verbose=False):
+def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
     revisions = client.revisions(path)
     revision_dict = dict((parse_date(r['modified']), r) for r in revisions)
 
@@ -53,7 +53,7 @@ def restore_file(client, path, cutoff_datetime, verbose=False):
         return
 
     # look for the most recent revision before the cutoff
-    pre_cutoff_modtimes = [d for d in revision_dict.keys() 
+    pre_cutoff_modtimes = [d for d in revision_dict.keys()
                                    if d < cutoff_datetime]
     if len(pre_cutoff_modtimes) > 0:
         modtime = max(pre_cutoff_modtimes)
@@ -63,8 +63,9 @@ def restore_file(client, path, cutoff_datetime, verbose=False):
         client.restore(path, rev)
     else:   # there were no revisions before the cutoff, so delete
         if verbose:
-            print(path + ' DELETE')
-        client.file_delete(path)
+            print(path + ' ' + ('SKIP' if is_deleted else 'DELETE'))
+        if not is_deleted:
+            client.file_delete(path)
 
 
 def restore_folder(client, path, cutoff_datetime, verbose=False):
@@ -80,7 +81,8 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
         if item.get('is_dir', False):
             restore_folder(client, item['path'], cutoff_datetime, verbose)
         else:
-            restore_file(client, item['path'], cutoff_datetime, verbose)
+            restore_file(client, item['path'], cutoff_datetime,
+                item.get('is_deleted', False), verbose)
         time.sleep(DELAY)
 
 
