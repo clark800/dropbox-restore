@@ -32,4 +32,4 @@ Specifying a time is not officially supported because the time zone is ignored c
 
 Donations
 ---------
-If you would like to make a donation, you can use the Paypal button on my website: http://dfcd.net/about.html
+If you would like to make a donation, you can use the PayPal button on my website: http://dfcd.net/about.html
