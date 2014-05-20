@@ -16,7 +16,7 @@ Installation
 1. First make sure that Python 2.7 and pip are installed. 
 2. Then install the Dropbox Python API with the following command.
 
-    pip install dropbox
+    sudo pip install dropbox
 
 3. Download the packaged code from 
 http://rampantlogic.com/dropbox-restore/dropbox-restore.zip
