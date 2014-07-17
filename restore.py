@@ -13,6 +13,7 @@ and you want to restore "/home/user/dropbox/folder", the ROOTPATH is "/folder".
 
 ENCODING_ERROR = "File ignored due to encoding error"
 
+
 def authorize():
     flow = dropbox.client.DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
     authorize_url = flow.start()
@@ -65,7 +66,7 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
         try:
             client.restore(path, rev)
         except UnicodeError:
-            print(ENCODING_ERROR)
+            sys.stderr.write(ENCODING_ERROR)
     else:   # there were no revisions before the cutoff, so delete
         if verbose:
             print(path + ' ' + ('SKIP' if is_deleted else 'DELETE'))
@@ -73,7 +74,7 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
             try:
                 client.file_delete(path)
             except UnicodeError:
-                print(ENCODING_ERROR)
+                sys.stderr.write(ENCODING_ERROR)
 
 
 def restore_folder(client, path, cutoff_datetime, verbose=False):
