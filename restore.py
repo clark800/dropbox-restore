@@ -91,7 +91,8 @@ def main():
     if len(sys.argv) != 3:
         usage = 'usage: {0} ROOTPATH YYYY-MM-DD\n{1}'
         sys.exit(usage.format(sys.argv[0], HELP_MESSAGE))
-    root_path, cutoff = sys.argv[1:]
+    root_path_encoded, cutoff = sys.argv[1:]
+    root_path = root_path_encoded.decode(sys.stdin.encoding)
     cutoff_datetime = datetime(*map(int, cutoff.split('-')))
     client = login('token.dat')
     restore_folder(client, root_path, cutoff_datetime, verbose=True)
