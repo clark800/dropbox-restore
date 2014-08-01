@@ -18,9 +18,7 @@ Installation
 
     sudo pip install dropbox
 
-3. Download the packaged code from 
-http://rampantlogic.com/dropbox-restore/dropbox-restore.zip
-This package contains Dropbox API keys that are missing from the source code because Dropbox requires that source code does not contain API keys. Alternatively, you can use the source code from Github and insert your own API keys that you can get from Dropbox.
+3. Download restore.py from Github
 
 Forking
 -------

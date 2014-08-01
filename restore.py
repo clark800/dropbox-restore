@@ -43,7 +43,7 @@ def parse_date(s):
 
 
 def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
-    revisions = client.revisions(path)
+    revisions = client.revisions(path.encode('utf8'))
     revision_dict = dict((parse_date(r['modified']), r) for r in revisions)
 
     # skip if current revision is the same as it was at the cutoff
@@ -54,25 +54,26 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
 
     # look for the most recent revision before the cutoff
     pre_cutoff_modtimes = [d for d in revision_dict.keys()
-                                   if d < cutoff_datetime]
+                           if d < cutoff_datetime]
     if len(pre_cutoff_modtimes) > 0:
         modtime = max(pre_cutoff_modtimes)
         rev = revision_dict[modtime]['rev']
         if verbose:
             print(path + ' ' + str(modtime))
-        client.restore(path, rev)
+        client.restore(path.encode('utf8'), rev)
     else:   # there were no revisions before the cutoff, so delete
         if verbose:
             print(path + ' ' + ('SKIP' if is_deleted else 'DELETE'))
         if not is_deleted:
-            client.file_delete(path)
+            client.file_delete(path.encode('utf8'))
 
 
 def restore_folder(client, path, cutoff_datetime, verbose=False):
     if verbose:
         print('Restoring folder: ' + path)
     try:
-        folder = client.metadata(path, list=True, include_deleted=True)
+        folder = client.metadata(path.encode('utf8'), list=True,
+                                 include_deleted=True)
     except dropbox.rest.ErrorResponse as e:
         print(str(e))
         print(HELP_MESSAGE)
@@ -82,7 +83,7 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
             restore_folder(client, item['path'], cutoff_datetime, verbose)
         else:
             restore_file(client, item['path'], cutoff_datetime,
-                item.get('is_deleted', False), verbose)
+                         item.get('is_deleted', False), verbose)
         time.sleep(DELAY)
 
 
