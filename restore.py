@@ -27,6 +27,29 @@ def authorize():
     return access_token
 
 
+def get_config_path(appname,config_filename=''):
+    #modified from http://stackoverflow.com/questions/1084697/how-do-i-store-desktop-application-data-in-a-cross-platform-way-for-python
+    if sys.platform == 'darwin':
+        from AppKit import NSSearchPathForDirectoriesInDomains
+        # http://developer.apple.com/DOCUMENTATION/Cocoa/Reference/Foundation/Miscellaneous/Foundation_Functions/Reference/reference.html#//apple_ref/c/func/NSSearchPathForDirectoriesInDomains
+        # NSApplicationSupportDirectory = 14
+        # NSUserDomainMask = 1
+        # True for expanding the tilde into a fully qualified path
+        appdata = path.join(NSSearchPathForDirectoriesInDomains(14, 1, True)[0], appname, config_filename)
+    elif sys.platform == 'win32':
+        appdata = os.path.join(os.environ['APPDATA'], appname, config_filename)
+    elif os.environ.has_key('XDG_CONFIG_HOME'):
+        appdata = os.path.join(os.environ['XDG_CONFIG_HOME'], appname, config_filename)
+    else:
+        appdata = os.path.expanduser(os.path.join('~', '.config', appname, config_filename))
+
+    configpath = os.path.dirname(appdata)
+    if not os.path.exists(configpath):
+        os.makedirs(configpath)
+
+    return appdata
+
+
 def login(token_save_path):
     if os.path.exists(token_save_path):
         with open(token_save_path) as token_file:
@@ -95,7 +118,7 @@ def main():
     root_path_encoded, cutoff = sys.argv[1:]
     root_path = root_path_encoded.decode(sys.stdin.encoding)
     cutoff_datetime = datetime(*map(int, cutoff.split('-')))
-    client = login('token.dat')
+    client = login(get_config_path('dropbox-restore','token.dat'))
     restore_folder(client, root_path, cutoff_datetime, verbose=True)
 
 
