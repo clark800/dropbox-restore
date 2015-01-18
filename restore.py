@@ -10,7 +10,12 @@ HELP_MESSAGE = \
 """Note: You must specify the path starting with "/", where "/" is the root
 of your dropbox folder. So if your dropbox directory is at "/home/user/dropbox"
 and you want to restore "/home/user/dropbox/folder", the ROOTPATH is "/folder".
+
+When specifying the optional RESUMEPATH, restore will only start after encountering the given
+RESUMEPATH. Path comparisons are case-insensitive.
 """
+
+resume_path = ''
 
 def authorize():
     flow = dropbox.client.DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
@@ -44,6 +49,16 @@ def parse_date(s):
 
 
 def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
+    global resume_path
+
+    if resume_path:
+        if resume_path == path.lower():
+            print('Resuming at ' + path)
+            resume_path = None
+        else:
+            print('Skipping ' + path)
+            return
+
     revisions = client.revisions(path.encode('utf8'))
     current_rev = revisions[0]['rev']
 
@@ -81,6 +96,12 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
 def restore_folder(client, path, cutoff_datetime, verbose=False):
     if verbose:
         print('Restoring folder: ' + path)
+    if resume_path:
+        path_lower = path.lower()
+        if path_lower != resume_path[0:len(path_lower)]:
+            print('Skipping folder: ' + path)
+            return
+
     try:
         folder = client.metadata(path.encode('utf8'), list=True,
                                  include_deleted=True)
@@ -98,11 +119,14 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
 
 
 def main():
-    if len(sys.argv) != 3:
-        usage = 'usage: {0} ROOTPATH YYYY-MM-DD\n{1}'
+    global resume_path
+    if len(sys.argv) < 3:
+        usage = 'usage: {0} ROOTPATH YYYY-MM-DD [RESUMEPATH]\n{1}'
         sys.exit(usage.format(sys.argv[0], HELP_MESSAGE))
-    root_path_encoded, cutoff = sys.argv[1:]
+    root_path_encoded, cutoff = sys.argv[1:3]
     root_path = root_path_encoded.decode(sys.stdin.encoding)
+    if len(sys.argv) >= 4:
+        resume_path = sys.argv[3].decode(sys.stdin.encoding).lower()
     cutoff_datetime = datetime(*map(int, cutoff.split('-')))
     client = login('token.dat')
     restore_folder(client, root_path, cutoff_datetime, verbose=True)
