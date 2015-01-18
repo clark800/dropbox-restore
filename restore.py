@@ -45,6 +45,8 @@ def parse_date(s):
 
 def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
     revisions = client.revisions(path.encode('utf8'))
+    current_rev = revisions[0]['rev']
+
     revision_dict = dict((parse_date(r['modified']), r) for r in revisions)
 
     # skip if current revision is the same as it was at the cutoff
@@ -59,9 +61,16 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
     if len(pre_cutoff_modtimes) > 0:
         modtime = max(pre_cutoff_modtimes)
         rev = revision_dict[modtime]['rev']
+        delete = revision_dict[modtime].get('is_deleted', False)
+
+        unchanged = rev == current_rev or delete == is_deleted
+
         if verbose:
-            print(path + ' ' + str(modtime))
-        client.restore(path.encode('utf8'), rev)
+            print(path + ' ' + str(modtime) + ' ' + ('unchanged' if unchanged else ''))
+            # print(str(revision_dict))
+        if not unchanged:
+            restore_result = client.restore(path.encode('utf8'), rev)
+            # print(str(restore_result))
     else:   # there were no revisions before the cutoff, so delete
         if verbose:
             print(path + ' ' + ('SKIP' if is_deleted else 'DELETE'))
