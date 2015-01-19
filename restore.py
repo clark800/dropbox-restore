@@ -2,10 +2,13 @@
 import sys, os, dropbox, time
 from datetime import datetime
 
-APP_KEY = 'hacwza866qep9o6'   # INSERT APP_KEY HERE
-APP_SECRET = 'kgipko61g58n6uc'     # INSERT APP_SECRET HERE
+APP_KEY = 'hacwza866qep9o6'
+APP_SECRET = 'kgipko61g58n6uc'
 DELAY = 0.2 # delay between each file (try to stay under API rate limits)
+RETRY_DELAY = 2.0  # delay before retrying after a server error
 
+EXPIRED_MESSAGE = \
+"You're authorization may have expired, try deleting token.dat"
 HELP_MESSAGE = \
 """Note: You must specify the path starting with "/", where "/" is the root
 of your dropbox folder. So if your dropbox directory is at "/home/user/dropbox"
@@ -43,25 +46,39 @@ def parse_date(s):
     return datetime.strptime(a, '%a, %d %b %Y %H:%M:%S')
 
 
-def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
-    revisions = client.revisions(path.encode('utf8'))
-    revision_dict = dict((parse_date(r['modified']), r) for r in revisions)
+def retry_on_server_error(function, times=30):
+    for _ in range(times):
+        try:
+            function()
+            break
+        except dropbox.rest.ErrorResponse as e:
+            if e.status in [500, 502, 503, 504]:
+                print(str(e))
+                print('Retrying...')
+                time.sleep(RETRY_DELAY)
+            else:
+                raise
+    else:
+        raise
 
-    # skip if current revision is the same as it was at the cutoff
-    if max(revision_dict.keys()) < cutoff_datetime:
-        if verbose:
-            print(path + ' SKIP')
-        return
+
+def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
+    revisions = client.revisions(path.encode('utf8'), rev_limit=1000)
+    revision_dict = dict((parse_date(r['modified']), r) for r in revisions)
+    current_rev = revision_dict[max(revision_dict.keys())]['rev']
 
     # look for the most recent revision before the cutoff
     pre_cutoff_modtimes = [d for d in revision_dict.keys()
                            if d < cutoff_datetime]
     if len(pre_cutoff_modtimes) > 0:
         modtime = max(pre_cutoff_modtimes)
-        rev = revision_dict[modtime]['rev']
-        if verbose:
-            print(path + ' ' + str(modtime))
-        client.restore(path.encode('utf8'), rev)
+        restore_rev = revision_dict[modtime]['rev']
+        if restore_rev != current_rev:
+            if verbose:
+                print(path + ' ' + str(modtime))
+            client.restore(path.encode('utf8'), restore_rev)
+        else:
+            print(path + ' SKIP')  # current rev same as rev to restore to
     else:   # there were no revisions before the cutoff, so delete
         if verbose:
             print(path + ' ' + ('SKIP' if is_deleted else 'DELETE'))
@@ -77,14 +94,18 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
                                  include_deleted=True)
     except dropbox.rest.ErrorResponse as e:
         print(str(e))
-        print(HELP_MESSAGE)
+        if e.status == 401:
+            print(EXPIRED_MESSAGE)
+        else:
+            print(HELP_MESSAGE)
         return
     for item in folder.get('contents', []):
         if item.get('is_dir', False):
             restore_folder(client, item['path'], cutoff_datetime, verbose)
         else:
-            restore_file(client, item['path'], cutoff_datetime,
-                         item.get('is_deleted', False), verbose)
+            is_deleted = item.get('is_deleted', False)
+            retry_on_server_error(lambda: restore_file(
+                client, item['path'], cutoff_datetime, is_deleted, verbose))
         time.sleep(DELAY)
 
 
