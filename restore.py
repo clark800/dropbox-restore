@@ -57,7 +57,19 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
         if restore_rev != current_rev:
             if verbose:
                 print(path + ' ' + str(modtime))
-            client.restore(path.encode('utf8'), restore_rev)
+            for retry_count in range(20):
+                try:
+                    client.restore(path.encode('utf8'), restore_rev)
+                    break
+                except dropbox.rest.ErrorResponse as e:
+                    print('Error in restore: ' + str(e))
+                    if e.status == 500:
+                        print('Retrying')
+                        time.sleep(2)
+                    else:
+                        raise
+            else:
+                raise
         else:
             print(path + ' SKIP')  # current rev same as rev to restore to
     else:   # there were no revisions before the cutoff, so delete
