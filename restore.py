@@ -5,6 +5,7 @@ from datetime import datetime
 APP_KEY = 'hacwza866qep9o6'
 APP_SECRET = 'kgipko61g58n6uc'
 DELAY = 0.2 # delay between each file (try to stay under API rate limits)
+RETRY_DELAY = 2.0  # delay before retrying after a server error
 
 EXPIRED_MESSAGE = \
 "You're authorization may have expired, try deleting token.dat"
@@ -43,6 +44,22 @@ def login(token_save_path):
 def parse_date(s):
     a = s.split('+')[0].strip()
     return datetime.strptime(a, '%a, %d %b %Y %H:%M:%S')
+
+
+def retry_on_server_error(function, times=30):
+    for _ in range(times):
+        try:
+            function()
+            break
+        except dropbox.rest.ErrorResponse as e:
+            if e.status in [500, 502, 503, 504]:
+                print(str(e))
+                print('Retrying...')
+                time.sleep(RETRY_DELAY)
+            else:
+                raise
+    else:
+        raise
 
 
 def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
@@ -86,8 +103,9 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
         if item.get('is_dir', False):
             restore_folder(client, item['path'], cutoff_datetime, verbose)
         else:
-            restore_file(client, item['path'], cutoff_datetime,
-                         item.get('is_deleted', False), verbose)
+            is_deleted = item.get('is_deleted', False)
+            retry_on_server_error(lambda: restore_file(
+                client, item['path'], cutoff_datetime, is_deleted, verbose))
         time.sleep(DELAY)
 
 
