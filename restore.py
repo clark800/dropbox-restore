@@ -2,10 +2,12 @@
 import sys, os, dropbox, time
 from datetime import datetime
 
-APP_KEY = 'hacwza866qep9o6'   # INSERT APP_KEY HERE
-APP_SECRET = 'kgipko61g58n6uc'     # INSERT APP_SECRET HERE
+APP_KEY = 'hacwza866qep9o6'
+APP_SECRET = 'kgipko61g58n6uc'
 DELAY = 0.2 # delay between each file (try to stay under API rate limits)
 
+EXPIRED_MESSAGE = \
+"You're authorization may have expired, try deleting token.dat"
 HELP_MESSAGE = \
 """Note: You must specify the path starting with "/", where "/" is the root
 of your dropbox folder. So if your dropbox directory is at "/home/user/dropbox"
@@ -75,7 +77,10 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
                                  include_deleted=True)
     except dropbox.rest.ErrorResponse as e:
         print(str(e))
-        print(HELP_MESSAGE)
+        if e.status == 401:
+            print(EXPIRED_MESSAGE)
+        else:
+            print(HELP_MESSAGE)
         return
     for item in folder.get('contents', []):
         if item.get('is_dir', False):
