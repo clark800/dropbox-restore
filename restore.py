@@ -50,7 +50,7 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
     # skip if current revision is the same as it was at the cutoff
     if max(revision_dict.keys()) < cutoff_datetime:
         if verbose:
-            print(path + ' SKIP')
+            print(path.encode('utf8') + ' SKIP')
         return
 
     # look for the most recent revision before the cutoff
@@ -60,18 +60,18 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
         modtime = max(pre_cutoff_modtimes)
         rev = revision_dict[modtime]['rev']
         if verbose:
-            print(path + ' ' + str(modtime))
+            print(path.encode('utf8') + ' ' + str(modtime))
         client.restore(path.encode('utf8'), rev)
     else:   # there were no revisions before the cutoff, so delete
         if verbose:
-            print(path + ' ' + ('SKIP' if is_deleted else 'DELETE'))
+            print(path.encode('utf8') + ' ' + ('SKIP' if is_deleted else 'DELETE'))
         if not is_deleted:
             client.file_delete(path.encode('utf8'))
 
 
 def restore_folder(client, path, cutoff_datetime, verbose=False):
     if verbose:
-        print('Restoring folder: ' + path)
+        print('Restoring folder: ' + path.encode('utf8'))
     try:
         folder = client.metadata(path.encode('utf8'), list=True,
                                  include_deleted=True)
