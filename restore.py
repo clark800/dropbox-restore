@@ -101,9 +101,9 @@ def main():
     root_path_encoded, cutoff = sys.argv[1:]
     root_path = root_path_encoded.decode(sys.stdin.encoding)
     cutoff_datetime = datetime(*map(int, cutoff.split('-')))
-    if (datetime.now() - cutoff_datetime).days >= 30:
+    if (datetime.utcnow() - cutoff_datetime).days >= 30:
         sys.exit(HISTORY_WARNING)
-    if cutoff_datetime > datetime.now():
+    if cutoff_datetime > datetime.utcnow():
         sys.exit('Cutoff date must be in the past')
     client = login('token.dat')
     restore_folder(client, root_path, cutoff_datetime, verbose=True)
