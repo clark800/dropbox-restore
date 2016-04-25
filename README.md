@@ -13,16 +13,14 @@ Note that the path "/photos/nyc" should be relative to your Dropbox folder; it s
 
 Installation
 ------------
-1. First make sure that Python 2.7 and pip are installed. 
-2. Then install the Dropbox Python API with the following command.
+1. Obtain Dropbox APP\_KEY and APP\_SECRET by creating a Dropbox App: https://www.dropbox.com/developers/apps/create
+2. Make sure that Python 2.7 and pip are installed. 
+3. Then install the Dropbox Python API with the following command.
 
     sudo pip install dropbox
 
-3. Download restore.py from Github
-
-Forking
--------
-If you fork this project, you must obtain your own API keys from Dropbox and insert them into the APP\_KEY and APP\_SECRET fields.
+4. Download restore.py from Github
+5. Insert APP\_KEY and APP\_SECRET at the top of restore.py
 
 Time
 ----
