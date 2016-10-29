@@ -3,6 +3,9 @@ import sys, os, dropbox, time
 from datetime import datetime
 
 import dropbox_restore_config
+APP_KEY = dropbox_restore_config.APP_KEY
+APP_SECRET = dropbox_restore_config.APP_SECRET
+DELAY = dropbox_restore_config.DELAY
 
 HELP_MESSAGE = \
 """Note: You must specify the path starting with "/", where "/" is the root
