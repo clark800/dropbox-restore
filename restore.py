@@ -50,7 +50,11 @@ def parse_date(s):
 
 
 def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
-    revisions = client.revisions(path.encode('utf8'))
+    try:
+        revisions = client.revisions(path.encode('utf8'))
+    except dropbox.rest.ErrorResponse as e:
+        print(str(e))
+        return
     revision_dict = dict((parse_date(r['modified']), r) for r in revisions)
 
     # skip if current revision is the same as it was at the cutoff
