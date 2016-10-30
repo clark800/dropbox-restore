@@ -2,10 +2,28 @@
 import sys, os, dropbox, time
 from datetime import datetime
 
-import dropbox_restore_config
-APP_KEY = dropbox_restore_config.APP_KEY
-APP_SECRET = dropbox_restore_config.APP_SECRET
-DELAY = dropbox_restore_config.DELAY
+APP_KEY = 'hacwza866qep9o6'   # INSERT APP_KEY HERE
+APP_SECRET = 'kgipko61g58n6uc'     # INSERT APP_SECRET HERE
+DELAY = 0.2 # delay between each file (try to stay under API rate limits)
+DELETE_MISSING = False # set to True if you want to delete files that did not exist at the specified time
+
+try:
+    import dropbox_restore_config
+    try:
+        APP_KEY = dropbox_restore_config.APP_KEY
+        APP_SECRET = dropbox_restore_config.APP_SECRET
+    except AttributeError:
+        print('Could not load app credentials from external files. Using values from ' + sys.argv[0])
+    try:
+        DELAY = dropbox_restore_config.DELAY
+    except AttributeError:
+        print('DELAY: %s' % DELAY)
+    try:
+        DELETE_MISSING = dropbox_restore_config.DELETE_MISSING
+    except AttributeError:
+        print('DELETE_MISSING: %s' % DELETE_MISSING)
+except ImportError:
+    pass
 
 HELP_MESSAGE = \
 """Note: You must specify the path starting with "/", where "/" is the root
@@ -74,10 +92,13 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
             print(path.encode('utf8') + ' ' + str(modtime))
         client.restore(path.encode('utf8'), rev)
     else:   # there were no revisions before the cutoff, so delete
-        if verbose:
-            print(path.encode('utf8') + ' ' + ('SKIP' if is_deleted else 'DELETE'))
-        if not is_deleted:
+        if DELETE_MISSING and not is_deleted:
+            if verbose:
+                print(path.encode('utf8') + ' ' + 'DELETE')
             client.file_delete(path.encode('utf8'))
+        else:
+            if verbose:
+                print(path.encode('utf8') + ' ' + 'SKIP')
 
 
 def restore_folder(client, path, cutoff_datetime, verbose=False):
@@ -100,18 +121,19 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
 
 
 def main():
-    if len(sys.argv) != 3:
-        usage = 'usage: {0} ROOTPATH YYYY-MM-DD\n{1}'
+    if len(sys.argv) < 3:
+        usage = '\nusage: {0} YYYY-MM-DD ROOTPATH [ROOTPATH 2...]\n{1}'
         sys.exit(usage.format(sys.argv[0], HELP_MESSAGE))
-    root_path_encoded, cutoff = sys.argv[1:]
-    root_path = root_path_encoded.decode(sys.stdin.encoding)
+    cutoff = sys.argv[1]
     cutoff_datetime = datetime(*map(int, cutoff.split('-')))
     if (datetime.utcnow() - cutoff_datetime).days >= 30:
         sys.exit(HISTORY_WARNING)
     if cutoff_datetime > datetime.utcnow():
         sys.exit('Cutoff date must be in the past')
     client = login('token.dat')
-    restore_folder(client, root_path, cutoff_datetime, verbose=True)
+    for root_path_encoded in sys.argv[2:]:
+        root_path = root_path_encoded.decode(sys.stdin.encoding)
+        restore_folder(client, root_path, cutoff_datetime, verbose=True)
 
 
 if __name__ == '__main__':
