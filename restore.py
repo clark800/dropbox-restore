@@ -96,7 +96,7 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
             reason = 'Modified by another user: ' + last_revision_dict['modifier']['email']
     if reason:
         if verbose:
-            print(path.encode('utf8') + ' SKIP: ' + reason)
+            print(path.encode('utf8') + ' SKIP: '.encode('utf8') + reason.encode('utf8'))
         return
 
     # look for the most recent revision before the cutoff
@@ -106,21 +106,21 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
         modtime = max(pre_cutoff_modtimes)
         rev = revision_dict[modtime]['rev']
         if verbose:
-            print(path.encode('utf8') + ' ' + str(modtime))
+            print(path.encode('utf8') + ' '.encode('utf8') + str(modtime).encode('utf8'))
         if not args.do_nothing: wait(client.restore, path.encode('utf8'), rev)
     else:   # there were no revisions before the cutoff, so delete
         if args.delete and not is_deleted:
             if verbose:
-                print(path.encode('utf8') + ' ' + 'DELETE')
+                print(path.encode('utf8') + ' DELETE'.encode('utf8'))
             if not args.do_nothing: wait(client.file_delete, path.encode('utf8'))
         else:
             if verbose:
-                print(path.encode('utf8') + ' ' + 'SKIP')
+                print(path.encode('utf8') + ' SKIP'.encode('utf8'))
 
 
 def restore_folder(client, path, cutoff_datetime, verbose=False):
     if verbose:
-        print('Restoring folder: ' + path.encode('utf8'))
+        print('Restoring folder: '.encode('utf8') + path.encode('utf8'))
     try:
         folder = wait(client.metadata, path.encode('utf8'), list=True, include_deleted=True)
     except dropbox.rest.ErrorResponse as e:
