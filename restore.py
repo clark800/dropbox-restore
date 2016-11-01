@@ -32,13 +32,17 @@ from the source code."""
 def wait(fun, *args, **kwargs):
     global DELAY
     time.sleep(DELAY)
-    response = fun(*args)
-    #print repr(response)
-    while '503' in response:
-        pprint.pprint(response)
-        time.sleep(readheader('Retry-After'))
-        DELAY *= 1.1
-        response = fun(*args, **kwargs)
+    done = False
+    while not done:
+        try:
+            response = fun(*args, **kwargs)
+            done = True
+        except dropbox.rest.ErrorResponse as e:
+            if str(e).startswith('[503]'):
+                time.sleep(float(str(e).strip().split()[-1]))
+                DELAY *= 1.1
+            else:
+                raise
     return response
 
 def authorize():
@@ -76,7 +80,6 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
     global args, uid
     try:
         revisions = wait(client.revisions, path.encode('utf8'))
-
     except dropbox.rest.ErrorResponse as e:
         print(str(e))
         return
