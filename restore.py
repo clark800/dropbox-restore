@@ -260,7 +260,7 @@ def restore_folder(dbx, path, cutoff_datetime, verbose=True, job_path=False):
                 revision.server_modified = revision.server_modified
                 if last_rev == None or revision.server_modified > last_rev.server_modified:
                     last_rev = revision
-            if last_rev.server_modified > cutoff_datetime:
+            if last_rev != None and last_rev.server_modified > cutoff_datetime:
                 if is_deleted:
                     print '[RD]',
                     restored = api_call(dbx.files_restore, remote_path, last_rev.rev)
