@@ -1,11 +1,15 @@
 #!/usr/bin/env python2.7
-import sys, os, dropbox, time, argparse, json, pprint
+import sys, os, dropbox, time, argparse, json, requests, math, codecs
+from pprint import pprint
 from datetime import datetime
 from functools import partial
+
 
 APP_KEY = 'hacwza866qep9o6'   # INSERT APP_KEY HERE
 APP_SECRET = 'kgipko61g58n6uc'     # INSERT APP_SECRET HERE
 DELAY = 0.001 # delay between each file (try to stay under API rate limits)
+API_RETRY_DELAY = 1
+API_RETRY_MAX = 3
 
 try:
     import dropbox_restore_config
@@ -29,23 +33,98 @@ enabled extended version history). Please specify a cutoff date within the past
 30 days, or if you have extended version history, you may remove this check
 from the source code."""
 
-def wait(fun, *args, **kwargs):
-    global DELAY
+def human_time(seconds):
+    time_string = ''
+    seconds_left = seconds
+
+    day = ( 24 * 60 * 60 )
+    days = math.floor(seconds_left / day)
+    seconds_left = seconds_left - (days * day)
+    if days == 1:
+        time_string += '1 day, '
+    elif days > 1:
+        time_string += '%i days, ' % days
+
+    hour = ( 60 * 60 )
+    hours = math.floor(seconds_left / hour)
+    seconds_left = seconds_left - (hours * hour)
+    if hours == 1:
+        time_string += '1 hour, '
+    elif hours > 1:
+        time_string += '%i hours, ' % hours
+
+    minute = 60
+    minutes = math.floor(seconds_left / minute)
+    seconds_left = seconds_left - (minutes * minute)
+    if minutes == 1:
+        time_string += '1 minute, '
+    elif minutes > 1:
+        time_string += '%i minutes ' % minutes
+
+    if time_string != '':
+        time_string += 'and '
+
+    time_string += '%i seconds' % seconds_left
+    return time_string
+
+def api_call(fun, *args, **kwargs):
+    global DELAY, API_RETRY_DELAY, API_RETRY_MAX
+    attempt = 0
     time.sleep(DELAY)
-    done = False
-    while not done:
+    while attempt < API_RETRY_MAX:
+        attempt += 1
         try:
             response = fun(*args, **kwargs)
             done = True
-        except dropbox.rest.ErrorResponse as e:
-            if str(e).startswith('[503]'):
-                time.sleep(float(str(e).strip().split()[-1]))
-                DELAY *= 1.1
-            else:
+        except dropbox.exceptions.InternalServerError as e:
+            request_id, status_code, body = e
+            if attempt >= API_RETRY_MAX:
+                print(  'There is an issue with the Dropbox server. Aborted after %i attempts.' % attempt )
+                print( repr(fun) )
+                print( repr(args) )
+                print( repr(kwargs) )
+                print( str(e) )
                 raise
+            time.sleep(API_RETRY_DELAY)
+        except requests.exceptions.ReadTimeout as e:
+            if attempt >= API_RETRY_MAX:
+                print(   'Could not receive data from server. Aborted after %i attempts.' % attempt )
+                print( repr(fun) )
+                print( repr(args) )
+                print( repr(kwargs) )
+                print( str(e) )
+                raise
+            time.sleep(API_RETRY_DELAY)
+        except requests.exceptions.ConnectionError as e:
+            if attempt >= API_RETRY_MAX:
+                print(   'Connection error. Aborted after %i attempts.' % attempt )
+                print( repr(fun) )
+                print( repr(args) )
+                print( repr(kwargs) )
+                print( str(e) )
+                raise
+            time.sleep(API_RETRY_DELAY)
+        except dropbox.exceptions.RateLimitError as e:
+            request_id, error, backoff = e
+            time.sleep(backoff)
+            DELAY *= 1.1
+            if attempt >= API_RETRY_MAX:
+                print(   'Rate limit error. Aborted after %i attempts.' % attempt )
+                print( repr(fun) )
+                print( repr(args) )
+                print( repr(kwargs) )
+                print( str(e) )
+                raise
+        # except dropbox.exceptions.ApiError as e:
+        #     raise
+        except:
+            raise
     return response
 
 def authorize():
+    print(    'New Dropbox API token is required' )
+    APP_KEY = raw_input('App key: ')
+    APP_SECRET = raw_input('App secret: ')
     flow = dropbox.client.DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
     authorize_url = flow.start()
     print('1. Go to: ' + authorize_url)
@@ -68,7 +147,7 @@ def login(token_save_path):
         access_token = authorize()
         with open(token_save_path, 'w') as token_file:
             token_file.write(access_token)
-    return dropbox.client.DropboxClient(access_token)
+    return dropbox.Dropbox(access_token)
 
 
 def parse_date(s):
@@ -79,7 +158,7 @@ def parse_date(s):
 def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
     global args, uid
     try:
-        revisions = wait(client.revisions, path.encode('utf8'))
+        revisions = api_call(client.revisions, path.encode('utf8'))
     except dropbox.rest.ErrorResponse as e:
         print(str(e))
         return
@@ -107,44 +186,115 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
         rev = revision_dict[modtime]['rev']
         if verbose:
             print(path.encode('utf8') + ' '.encode('utf8') + str(modtime).encode('utf8'))
-        if not args.do_nothing: wait(client.restore, path.encode('utf8'), rev)
+        if not args.do_nothing: api_call(client.restore, path.encode('utf8'), rev)
     else:   # there were no revisions before the cutoff, so delete
         if args.delete and not is_deleted:
             if verbose:
                 print(path.encode('utf8') + ' DELETE'.encode('utf8'))
-            if not args.do_nothing: wait(client.file_delete, path.encode('utf8'))
+            if not args.do_nothing: api_call(client.file_delete, path.encode('utf8'))
         else:
             if verbose:
                 print(path.encode('utf8') + ' SKIP'.encode('utf8'))
 
 
-def restore_folder(client, path, cutoff_datetime, verbose=False):
-    if verbose:
-        print('Restoring folder: '.encode('utf8') + path.encode('utf8'))
+def restore_folder(dbx, path, cutoff_datetime, verbose=True, job_path=False):
+    remote_folder_notrail = path.rstrip(u'/')
+    remote_folder = remote_folder_notrail + u'/'
+    print(u'Reading folder: ' + remote_folder.encode('utf8'))
     try:
-        folder = wait(client.metadata, path.encode('utf8'), list=True, include_deleted=True)
+        remote_list_part = api_call(dbx.files_list_folder, remote_folder_notrail, recursive=True, include_deleted=True)
     except dropbox.rest.ErrorResponse as e:
         print(str(e))
         print(HELP_MESSAGE)
         return
-    for item in folder.get('contents', []):
-        if item.get('is_dir', False):
-            restore_folder(client, item['path'], cutoff_datetime, verbose)
-        else:
-            restore_file(client, item['path'], cutoff_datetime, item.get('is_deleted', False), verbose)
+    remote_list = remote_list_part.entries
+    while remote_list_part.has_more:
+        print '\rItems found: %i' % len(remote_list),
+        sys.stdout.flush()
+        try:
+            remote_list_part = api_call(dbx.files_list_folder_continue, remote_list_part.cursor)
+        except dropbox.rest.ErrorResponse as e:
+            print(str(e))
+            print(HELP_MESSAGE)
+            return
+        remote_list += remote_list_part.entries
+        #print pprint(remote_list)
+    checked_files = []
+    if job_path and os.path.isfile(job_path):
+        with codecs.open(job_path,encoding='utf8') as f:
+            checked_files = f.read().splitlines()
+    timers = [time.time()]
+    time_start = time.time()
+    remote_paths = []
+    remote_list_length = len(remote_list)
+    remote_item_i = 0
+    for item in remote_list:
+        remote_item_i += 1
+        remote_path = item.path_lower
+        timers = timers[-9:] + [time.time()]
+        if remote_path in checked_files:
+            continue
+        progress = float(remote_item_i) / float(remote_list_length)
+        time_pr_item = (timers[-1] - timers[0]) / float(len(timers))
+        time_left = ( remote_list_length - remote_item_i ) * time_pr_item
+        #print repr(timers)
+        print "\n%i / %i %5.2f%% ETL: %s" % ( remote_item_i, remote_list_length, progress * 100.0, human_time(time_left)),
+        print remote_path,
+        is_folder = type(item) == dropbox.files.FolderMetadata
+        is_deleted = type(item) == dropbox.files.DeletedMetadata
+        # if is_deleted:
+        #     print repr(item)
+        if not is_folder:
+            try:
+                revisions = api_call(dbx.files_list_revisions, remote_path, limit=10)
+            except dropbox.exceptions.ApiError as e:
+                #pprint(dir(e))
+                #pprint(dir(e.error))
+                if is_deleted and 'not_file' in str(e.error): # Is deleted folder, skip
+                    is_folder = True
+        if not is_folder:
+            #print u'Revisions of ' + remote_path
+            #current_rev = item.rev
+            last_rev = None
+            for revision in revisions.entries:
+                revision.server_modified = revision.server_modified
+                if last_rev == None or revision.server_modified > last_rev.server_modified:
+                    last_rev = revision
+            if last_rev.server_modified > cutoff_datetime:
+                if is_deleted:
+                    print '[RD]',
+                    restored = api_call(dbx.files_restore, remote_path, last_rev.rev)
+                    #print repr(restored)
+                elif item.rev != last_rev.rev:
+                    print '[RL]',
+                    #restored = api_call(dbx.files_restore, remote_path, last_rev.rev)
+                    #print repr(restored)
+                #print 'Last revision is < cutoff'
+        if job_path:
+            codecs.open(job_path, 'a',encoding='utf8').write(remote_path+u'\n')
+                            
+                
+
+
+        # if is_deleted:
+        #     remote_paths.append(remote_path)
+    # for remote_path in sorted(remote_paths_sorted):
+    #     print remote_path.encode('utf8')
+        #print remote_path.encode('utf8')
+    # for item in folder.get('contents', []):
+    #     if item.get('is_dir', False):
+    #         restore_folder(client, item['path'], cutoff_datetime, verbose)
+    #     else:
+    #         restore_file(client, item['path'], cutoff_datetime, item.get('is_deleted', False), verbose)
         #time.sleep(DELAY)
 
 
 def main():
     global uid, args
     parser = argparse.ArgumentParser()
-    #parser.add_argument("-d", "--delay", help="Set a specific delay (in seconds) between calls, to stay below API rate limits.", type=float, default=False)
-    parser.add_argument("--delete", help="Delete files that did not exist at the specified time.", default=False)
-    parser.add_argument("-n", "--do_nothing", help="Do not apply any changes. Only show what would be done.", action="store_true")
-    parser.add_argument("-g", "--allusers", help="Restore files last modified by any user (global), not just you (applies to shared resources).", action="store_true")
-    parser.add_argument("-u", "--user", help="Only affect files last modified by USER (applies to shared resources).")
+    parser.add_argument("-j", "--job", help="Resume a previously aborted .job")
     parser.add_argument("cutoff", help="Restore to date formatted as: YYYY-MM-DD")
-    parser.add_argument("folder", nargs='+', help="Folder(s) to restore. Can either be a local path in your Dropbox folder, or a folder relative to your Dropbox root.")
+    parser.add_argument("folder", nargs='*', help="Folder(s) to restore. Can either be a local path in your Dropbox folder, or a folder relative to your Dropbox root.", default=[''])
     args = parser.parse_args()
     cutoff = args.cutoff
     cutoff_datetime = datetime(*map(int, cutoff.split('-')))
@@ -152,10 +302,13 @@ def main():
         sys.exit(HISTORY_WARNING)
     if cutoff_datetime > datetime.utcnow():
         sys.exit('Cutoff date must be in the past')
-    client = login('token.dat')
-    account_info = client.account_info()
-    uid = account_info['uid']
-    print 'Logged in as %s, uid: %s' % (account_info['email'], account_info['uid'])
+    if args.job:
+        job_path = args.job
+        #job = pickle.load( open( args.job, "rb" ) )
+    dbx = login('token.dat')
+    account_info = dbx.users_get_current_account()
+    uid = account_info.account_id
+    print 'Logged in as %s, uid: %s' % (account_info.email, uid)
     dropbox_roots = []
     try:
         for account, details in json.loads(open(os.path.expanduser('~/.dropbox/info.json')).read()).iteritems(): # Mac only
@@ -166,11 +319,11 @@ def main():
         pass
     for root_path_encoded in args.folder:
         root_path = root_path_encoded.decode(sys.stdin.encoding)
-        if os.path.exists(root_path):
+        if os.path.exists(root_path) and len(dropbox_roots) > 0:
             root_path = os.path.realpath(root_path)
             for dropbox_root in dropbox_roots:
                 root_path = root_path.replace(dropbox_root, '')
-        restore_folder(client, root_path, cutoff_datetime, verbose=True)
+        restore_folder(dbx, root_path, cutoff_datetime, verbose=True, job_path=job_path)
 
 
 if __name__ == '__main__':
