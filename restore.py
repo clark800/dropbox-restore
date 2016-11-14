@@ -149,52 +149,9 @@ def login(token_save_path):
             token_file.write(access_token)
     return dropbox.Dropbox(access_token)
 
-
 def parse_date(s):
     a = s.split('+')[0].strip()
     return datetime.strptime(a, '%a, %d %b %Y %H:%M:%S')
-
-
-def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
-    global args, uid
-    try:
-        revisions = api_call(client.revisions, path.encode('utf8'))
-    except dropbox.rest.ErrorResponse as e:
-        print(str(e))
-        return
-    revision_dict = dict((parse_date(r['modified']), r) for r in revisions)
-    last_revision_dict = revision_dict[ max( revision_dict.keys() ) ]
-    # skip if current revision is the same as it was at the cutoff
-    reason = False
-    if max(revision_dict.keys()) < cutoff_datetime:
-        reason = 'Not modified after restoration point'
-    elif not args.allusers:
-        if args.user and args.user != last_revision_dict['modifier']['email']:
-            reason = 'Modified by another user: ' + last_revision_dict['modifier']['email']
-        elif last_revision_dict['modifier']['uid'] != uid:
-            reason = 'Modified by another user: ' + last_revision_dict['modifier']['email']
-    if reason:
-        if verbose:
-            print(path.encode('utf8') + ' SKIP: '.encode('utf8') + reason.encode('utf8'))
-        return
-
-    # look for the most recent revision before the cutoff
-    pre_cutoff_modtimes = [d for d in revision_dict.keys()
-                           if d < cutoff_datetime]
-    if len(pre_cutoff_modtimes) > 0:
-        modtime = max(pre_cutoff_modtimes)
-        rev = revision_dict[modtime]['rev']
-        if verbose:
-            print(path.encode('utf8') + ' '.encode('utf8') + str(modtime).encode('utf8'))
-        if not args.do_nothing: api_call(client.restore, path.encode('utf8'), rev)
-    else:   # there were no revisions before the cutoff, so delete
-        if args.delete and not is_deleted:
-            if verbose:
-                print(path.encode('utf8') + ' DELETE'.encode('utf8'))
-            if not args.do_nothing: api_call(client.file_delete, path.encode('utf8'))
-        else:
-            if verbose:
-                print(path.encode('utf8') + ' SKIP'.encode('utf8'))
 
 def sort_deleted_first(item):
     return type(item) != dropbox.files.DeletedMetadata
