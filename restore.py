@@ -196,6 +196,8 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
             if verbose:
                 print(path.encode('utf8') + ' SKIP'.encode('utf8'))
 
+def sort_deleted_first(item):
+    return type(item) != dropbox.files.DeletedMetadata
 
 def restore_folder(dbx, path, cutoff_datetime, verbose=True, job_path=False):
     remote_folder_notrail = path.rstrip(u'/')
@@ -228,7 +230,7 @@ def restore_folder(dbx, path, cutoff_datetime, verbose=True, job_path=False):
     remote_paths = []
     remote_list_length = len(remote_list)
     remote_item_i = 0
-    for item in remote_list:
+    for item in sorted(remote_list, key=sort_deleted_first):
         remote_item_i += 1
         remote_path = item.path_lower
         timers = timers[-9:] + [time.time()]
@@ -252,6 +254,9 @@ def restore_folder(dbx, path, cutoff_datetime, verbose=True, job_path=False):
                 #pprint(dir(e.error))
                 if is_deleted and 'not_file' in str(e.error): # Is deleted folder, skip
                     is_folder = True
+            except dropbox.exceptions.InternalServerError as e:
+                print str(e),
+                continue
         if not is_folder:
             #print u'Revisions of ' + remote_path
             #current_rev = item.rev
@@ -302,9 +307,7 @@ def main():
         sys.exit(HISTORY_WARNING)
     if cutoff_datetime > datetime.utcnow():
         sys.exit('Cutoff date must be in the past')
-    if args.job:
-        job_path = args.job
-        #job = pickle.load( open( args.job, "rb" ) )
+    job_path = args.job
     dbx = login('token.dat')
     account_info = dbx.users_get_current_account()
     uid = account_info.account_id
