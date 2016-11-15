@@ -156,7 +156,7 @@ def parse_date(s):
 def sort_deleted_first(item):
     return type(item) != dropbox.files.DeletedMetadata
 
-def restore_folder(dbx, path, cutoff_datetime, verbose=True, job_path=False):
+def restore_folder(dbx, path, cutoff_datetime, verbose=True, job_path=False, skip_nondeleted=False):
     remote_folder_notrail = path.rstrip(u'/')
     remote_folder = remote_folder_notrail + u'/'
     print(u'Reading folder: ' + remote_folder.encode('utf8'))
@@ -201,6 +201,8 @@ def restore_folder(dbx, path, cutoff_datetime, verbose=True, job_path=False):
         print remote_path,
         is_folder = type(item) == dropbox.files.FolderMetadata
         is_deleted = type(item) == dropbox.files.DeletedMetadata
+        if skip_nondeleted and not is_deleted:
+            continue
         # if is_deleted:
         #     print repr(item)
         if not is_folder:
@@ -254,7 +256,8 @@ def restore_folder(dbx, path, cutoff_datetime, verbose=True, job_path=False):
 def main():
     global uid, args
     parser = argparse.ArgumentParser()
-    parser.add_argument("-j", "--job", help="Resume a previously aborted .job")
+    parser.add_argument("-j", "--job", help="Log checked files to this file, and skip previously checked files.")
+    parser.add_argument("-u", "--undelete", help="Only recover deleted files. Skips revision check for non-deleted files.")
     parser.add_argument("cutoff", help="Restore to date formatted as: YYYY-MM-DD")
     parser.add_argument("folder", nargs='*', help="Folder(s) to restore. Can either be a local path in your Dropbox folder, or a folder relative to your Dropbox root.", default=[''])
     args = parser.parse_args()
@@ -265,6 +268,7 @@ def main():
     if cutoff_datetime > datetime.utcnow():
         sys.exit('Cutoff date must be in the past')
     job_path = args.job
+    skip_nondeleted = args.undelete
     dbx = login('token.dat')
     account_info = dbx.users_get_current_account()
     uid = account_info.account_id
@@ -283,7 +287,7 @@ def main():
             root_path = os.path.realpath(root_path)
             for dropbox_root in dropbox_roots:
                 root_path = root_path.replace(dropbox_root, '')
-        restore_folder(dbx, root_path, cutoff_datetime, verbose=True, job_path=job_path)
+        restore_folder(dbx, root_path, cutoff_datetime, verbose=True, job_path=job_path, skip_nondeleted=skip_nondeleted)
 
 
 if __name__ == '__main__':
