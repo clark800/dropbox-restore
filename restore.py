@@ -19,7 +19,7 @@ enabled extended version history). Please specify a cutoff date within the past
 from the source code."""
 
 def authorize():
-    flow = dropbox.client.DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
+    flow = dropbox.DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
     authorize_url = flow.start()
     print('1. Go to: ' + authorize_url)
     print('2. Click "Allow" (you might have to log in first)')
@@ -29,8 +29,7 @@ def authorize():
     except NameError:
         pass
     code = input("Enter the authorization code here: ").strip()
-    access_token, user_id = flow.finish(code)
-    return access_token
+    return  flow.finish(code).access_token
 
 
 def login(token_save_path):
@@ -41,7 +40,7 @@ def login(token_save_path):
         access_token = authorize()
         with open(token_save_path, 'w') as token_file:
             token_file.write(access_token)
-    return dropbox.client.DropboxClient(access_token)
+    return dropbox.Dropbox(access_token)
 
 
 def parse_date(s):
@@ -50,8 +49,8 @@ def parse_date(s):
 
 
 def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
-    revisions = client.revisions(path.encode('utf8'))
-    revision_dict = dict((parse_date(r['modified']), r) for r in revisions)
+    revisions = client.files_list_revisions(path.encode('utf8'))
+    revision_dict = dict((r.server_modified, r) for r in revisions.entries)
 
     # skip if current revision is the same as it was at the cutoff
     if max(revision_dict.keys()) < cutoff_datetime:
@@ -64,33 +63,37 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
                            if d < cutoff_datetime]
     if len(pre_cutoff_modtimes) > 0:
         modtime = max(pre_cutoff_modtimes)
-        rev = revision_dict[modtime]['rev']
+        rev = revision_dict[modtime].rev
         if verbose:
             print(path.encode('utf8') + ' ' + str(modtime))
-        client.restore(path.encode('utf8'), rev)
+        client.files_restore(path.encode('utf8'), rev)
     else:   # there were no revisions before the cutoff, so delete
         if verbose:
             print(path.encode('utf8') + ' ' + ('SKIP' if is_deleted else 'DELETE'))
-        if not is_deleted:
-            client.file_delete(path.encode('utf8'))
+        # TODO: Restore functionality whereby a file that didn't exist at that
+        # point in time will get deleted.
+        #if not is_deleted:
+        #    client.file_delete(path.encode('utf8'))
 
 
 def restore_folder(client, path, cutoff_datetime, verbose=False):
     if verbose:
         print('Restoring folder: ' + path.encode('utf8'))
     try:
-        folder = client.metadata(path.encode('utf8'), list=True,
-                                 include_deleted=True)
-    except dropbox.rest.ErrorResponse as e:
+        folder = client.files_list_folder(path.encode('utf8'),
+                                          include_deleted=True)
+    except dropbox.exceptions.ApiError as e:
         print(str(e))
         print(HELP_MESSAGE)
         return
-    for item in folder.get('contents', []):
-        if item.get('is_dir', False):
-            restore_folder(client, item['path'], cutoff_datetime, verbose)
+    for item in folder.entries:
+        if isinstance(item, dropbox.files.FolderMetadata):
+            restore_folder(client, item.path_lower, cutoff_datetime, verbose)
         else:
-            restore_file(client, item['path'], cutoff_datetime,
-                         item.get('is_deleted', False), verbose)
+            # TODO: Restore functionality whereby a file that didn't exist at that
+            # point in time will get deleted.
+            restore_file(client, item.path_lower, cutoff_datetime,
+                         False, verbose)
         time.sleep(DELAY)
 
 
