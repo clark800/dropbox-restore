@@ -1,6 +1,8 @@
 dropbox-restore
 ===============
 
+_The Dropbox API changed and this script no longer works; you can try using https://github.com/clark800/dropbox-restore/pull/48 though it does not restore to the exact previous state_
+
 Restore any dropbox folder to a previous state. If a file did not exist at the specified time, it will be deleted.
 
 Example
