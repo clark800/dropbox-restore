@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-import sys, os, dropbox, time
+import sys, os, dropbox, time, urllib
 from datetime import datetime
 
-APP_KEY = 'hacwza866qep9o6'   # INSERT APP_KEY HERE
-APP_SECRET = 'kgipko61g58n6uc'     # INSERT APP_SECRET HERE
+APP_KEY = 'app-key'   # INSERT APP_KEY HERE
+APP_SECRET = 'app-secret'     # INSERT APP_SECRET HERE
 DELAY = 0.2 # delay between each file (try to stay under API rate limits)
 
 HELP_MESSAGE = \
@@ -17,6 +17,37 @@ HISTORY_WARNING = \
 enabled extended version history). Please specify a cutoff date within the past
 30 days, or if you have extended version history, you may remove this check
 from the source code."""
+
+def win32_unicode_argv():
+    """Uses shell32.GetCommandLineArgvW to get sys.argv as a list of Unicode
+    strings.
+
+    Versions 2.x of Python don't support Unicode in sys.argv on
+    Windows, with the underlying Windows API instead replacing multi-byte
+    characters with '?'.
+    """
+
+    from ctypes import POINTER, byref, cdll, c_int, windll
+    from ctypes.wintypes import LPCWSTR, LPWSTR
+
+    GetCommandLineW = cdll.kernel32.GetCommandLineW
+    GetCommandLineW.argtypes = []
+    GetCommandLineW.restype = LPCWSTR
+
+    CommandLineToArgvW = windll.shell32.CommandLineToArgvW
+    CommandLineToArgvW.argtypes = [LPCWSTR, POINTER(c_int)]
+    CommandLineToArgvW.restype = POINTER(LPWSTR)
+
+    cmd = GetCommandLineW()
+    argc = c_int(0)
+    argv = CommandLineToArgvW(cmd, byref(argc))
+    if argc.value > 0:
+        # Remove Python executable and commands if present
+        start = argc.value - len(sys.argv)
+        return [argv[i] for i in
+                xrange(start, argc.value)]
+
+sys.argv = win32_unicode_argv()
 
 def authorize():
     flow = dropbox.client.DropboxOAuth2FlowNoRedirect(APP_KEY, APP_SECRET)
@@ -79,7 +110,7 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
     if verbose:
         print('Restoring folder: ' + path.encode('utf8'))
     try:
-        folder = client.metadata(path.encode('utf8'), list=True,
+        folder = client.metadata(urllib.unquote(path.encode('utf8')), list=True,
                                  include_deleted=True)
     except dropbox.rest.ErrorResponse as e:
         print(str(e))
@@ -99,7 +130,7 @@ def main():
         usage = 'usage: {0} ROOTPATH YYYY-MM-DD\n{1}'
         sys.exit(usage.format(sys.argv[0], HELP_MESSAGE))
     root_path_encoded, cutoff = sys.argv[1:]
-    root_path = root_path_encoded.decode(sys.stdin.encoding)
+    root_path = root_path_encoded
     cutoff_datetime = datetime(*map(int, cutoff.split('-')))
     if (datetime.utcnow() - cutoff_datetime).days >= 30:
         sys.exit(HISTORY_WARNING)

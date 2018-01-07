@@ -31,3 +31,8 @@ Specifying a time is not officially supported because the time zone is ignored c
 Donations
 ---------
 If you would like to make a donation, you can use the PayPal button on my website: http://cclark.me
+
+Contributors
+---------
+Based on [clark800](https://github.com/clark800) work.  
+Windows Unicode fix by [jajanka](https://github.com/jajanka).
