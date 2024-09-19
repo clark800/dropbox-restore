@@ -1,6 +1,8 @@
 dropbox-restore
 ===============
 
+### 📣 I no longer use Dropbox so I can't maintain this script. If you would like to be the maintainer, you can create a pull request that updates to the latest API and I will grant you collaborator access so you can manage the project (if the pull request passes a code review). The pull request should preserve all the former functionality and update to the latest API and not make any other changes.
+
 _**The Dropbox API changed and this script no longer works; you can try using https://github.com/clark800/dropbox-restore/pull/48 though it does not restore to the exact previous state**_
 
 Restore any dropbox folder to a previous state. If a file did not exist at the specified time, it will be deleted.
