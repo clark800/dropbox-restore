@@ -70,7 +70,8 @@ def restore_file(client, path, cutoff_datetime, is_deleted, verbose=False):
         client.restore(path.encode('utf8'), rev)
     else:   # there were no revisions before the cutoff, so delete
         if verbose:
-            print(path.encode('utf8') + ' ' + ('SKIP' if is_deleted else 'DELETE'))
+            operation = 'SKIP' if is_deleted else 'DELETE'
+            print(path.encode('utf8') + ' ' + operation)
         if not is_deleted:
             client.file_delete(path.encode('utf8'))
 
@@ -81,6 +82,7 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
     try:
         folder = client.metadata(path.encode('utf8'), list=True,
                                  include_deleted=True)
+        time.sleep(DELAY)
     except dropbox.rest.ErrorResponse as e:
         print(str(e))
         print(HELP_MESSAGE)
@@ -88,10 +90,12 @@ def restore_folder(client, path, cutoff_datetime, verbose=False):
     for item in folder.get('contents', []):
         if item.get('is_dir', False):
             restore_folder(client, item['path'], cutoff_datetime, verbose)
-        else:
+        elif cutoff_datetime < parse_date(item.get('modified')):
             restore_file(client, item['path'], cutoff_datetime,
                          item.get('is_deleted', False), verbose)
-        time.sleep(DELAY)
+            time.sleep(DELAY)
+        elif verbose:
+            print(item['path'].encode('utf8') + ' SKIP')
 
 
 def main():
